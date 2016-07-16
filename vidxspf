@@ -1,0 +1,86 @@
+#!/usr/bin/python
+
+import os
+from hsaudiotag import auto
+from urllib import quote
+
+class XspfWriter:
+
+    def __init__(self, xspfname):
+        self.xspfname = xspfname
+        self.xspf = None
+        self.video_count = 0
+
+
+    def begin_xspf(self):
+        header = '''<?xml version="1.0" encoding="UTF-8"?>
+<playlist xmlns="http://xspf.org/ns/0/" xmlns:vlc="http://www.videolan.org/vlc/playlist/ns/0/" version="1">
+    <title>Playlist</title>
+    <trackList>
+'''
+        try:
+            self.xspf = open(self.xspfname, 'w')
+            self.xspf.write(header)
+            return True
+        except:
+            return False
+
+    def print_track(self, location, duration):
+        track = '''		<track>
+            <location>file://%s</location>
+            <duration>%s</duration>
+            <extension application="http://www.videolan.org/vlc/playlist/0">
+                <vlc:id>%d</vlc:id>
+            </extension>
+        </track>
+'''
+        self.xspf.write(track % (quote(location), duration, self.video_count))
+
+
+    def close_xspf(self):
+        footer = '''	</trackList>
+    <extension application="http://www.videolan.org/vlc/playlist/0">
+'''
+        for i in range(self.video_count):
+            footer += '		<vlc:item tid="%d"/>\n' % i
+        footer += '''	</extension>
+    </playlist>'''
+        self.xspf.write(footer)
+        self.xspf.close()
+
+
+    def scandir(self, rootdir):
+        for parentdir, dirs, files in os.walk(rootdir):
+            for f in sorted(files):
+                if f.endswith(('mp4', 'wma', 'mpeg', 'mpg', 'ogg', 'avi', 'mkv')):
+                    location = os.path.join(parentdir,f)
+                    duration = str(auto.File(location).duration) + "000"
+                    self.print_track(location, duration)
+                    self.video_count += 1
+
+
+    def write(self, video_dir):
+        if self.begin_xspf():
+            self.scandir(video_dir)
+            self.close_xspf()
+            return True
+        else:
+            return False
+
+
+if __name__ == '__main__':
+    from sys import argv
+
+    if len(argv) > 1:
+        xspfname = "playlist.xspf"
+        video_dir = os.path.abspath(argv[1])
+        if len(argv) > 2:
+            xspfname = argv[2]
+
+        xw = XspfWriter(xspfname)
+        if xw.write(video_dir):
+            print "Created %s" % xspfname
+        else:
+            print "Error creating playlist"
+    else:
+        print "Usage: %s videodir [xspfname]" % argv[0]
